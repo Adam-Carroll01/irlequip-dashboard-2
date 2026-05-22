@@ -399,13 +399,13 @@ function render(){
       const dj=jobs.filter(j=>j.start<=dstr&&j.end>=dstr);
       const isTod=now.getFullYear()===calState.y&&now.getMonth()===calState.m&&now.getDate()===d;
       const isSel=calState.sel===d;
-      const cell=h("div",{style:{minHeight:72,borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`,padding:4,cursor:"pointer",background:isSel?"#FFF0F2":W},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
+      const cell=h("div",{style:{minHeight:120,borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`,padding:6,cursor:"pointer",background:isSel?"#FFF0F2":W},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
       cell.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}},[
         h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}},[d.toString()]),
         dj.length?h("span",{style:{fontSize:9,fontWeight:800,color:R,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"1px 5px"}},[dj.length.toString()]):h("span",{}),
       ]));
-      dj.slice(0,2).forEach(j=>{const s=statusObj(j.status);const tag=h("div",{style:{fontSize:9,fontWeight:700,padding:"2px 4px",borderRadius:3,background:s.bg,color:s.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",marginBottom:1,cursor:"pointer"},onClick:e=>{e.stopPropagation();setState({modal:{...j}});}},[j.title]);cell.appendChild(tag);});
-      if(dj.length>2)cell.appendChild(h("div",{style:{fontSize:9,color:"#9CA3AF",paddingLeft:2}},["+"+(dj.length-2)]));
+      dj.slice(0,4).forEach(j=>{const s=statusObj(j.status);const tag=h("div",{style:{fontSize:10,fontWeight:700,padding:"3px 6px",borderRadius:3,background:s.bg,color:s.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",marginBottom:2,cursor:"pointer"},onClick:e=>{e.stopPropagation();setState({modal:{...j}});}},[j.title]);cell.appendChild(tag);});
+      if(dj.length>4)cell.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",paddingLeft:2}},["+"+(dj.length-4)+" more"]));
       grid2.appendChild(cell);
     }
     cal.appendChild(grid2);
@@ -473,3 +473,4 @@ setInterval(()=>loadBoard(true),90000);
 </script>
 </body>
 </html>
+
