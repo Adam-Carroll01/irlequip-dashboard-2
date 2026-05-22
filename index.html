@@ -378,8 +378,8 @@ function render(){
     const now=new Date();
     const calState=window._calState||{y:now.getFullYear(),m:now.getMonth(),sel:null};
     window._calState=calState;
-    const calWrap=h("div",{style:{display:"flex",gap:16,alignItems:"flex-start"}});
-    const cal=h("div",{style:{flex:1,background:W,border:`1px solid ${MG}`,borderRadius:10,overflow:"hidden",minWidth:0}});
+    const calWrap=h("div",{style:{display:"flex",gap:16,alignItems:"flex-start",height:"calc(100vh - 180px)"}});
+    const cal=h("div",{style:{flex:1,background:W,border:`1px solid ${MG}`,borderRadius:10,overflow:"hidden",minWidth:0,display:"flex",flexDirection:"column",height:"100%"}});
     const calHeader=h("div",{style:{background:B,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}});
     calHeader.appendChild(h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:16},onClick:()=>{window._calState={...calState,m:calState.m===0?11:calState.m-1,y:calState.m===0?calState.y-1:calState.y};render();}},["‹"]));
     calHeader.appendChild(h("div",{style:{color:W,fontWeight:800,fontSize:16}},[`${MONTHS[calState.m]} ${calState.y}`]));
@@ -388,7 +388,7 @@ function render(){
     const dayHeaders=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:LG,borderBottom:`1px solid ${MG}`}});
     DAYS.forEach(d=>dayHeaders.appendChild(h("div",{style:{padding:"8px 4px",textAlign:"center",fontSize:10,fontWeight:800,color:"#9CA3AF",letterSpacing:".08em"}},[d])));
     cal.appendChild(dayHeaders);
-    const grid2=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)"}});
+    const grid2=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",flex:1,overflowY:"auto"}});
     const firstDay=new Date(calState.y,calState.m,1).getDay();
     const dim=new Date(calState.y,calState.m+1,0).getDate();
     const pad=n=>String(n).padStart(2,"0");
@@ -399,7 +399,7 @@ function render(){
       const dj=jobs.filter(j=>j.start<=dstr&&j.end>=dstr);
       const isTod=now.getFullYear()===calState.y&&now.getMonth()===calState.m&&now.getDate()===d;
       const isSel=calState.sel===d;
-      const cell=h("div",{style:{minHeight:120,borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`,padding:6,cursor:"pointer",background:isSel?"#FFF0F2":W},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
+      const cell=h("div",{style:{minHeight:"calc((100vh - 280px) / 6)",borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`,padding:6,cursor:"pointer",background:isSel?"#FFF0F2":W},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
       cell.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}},[
         h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}},[d.toString()]),
         dj.length?h("span",{style:{fontSize:9,fontWeight:800,color:R,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"1px 5px"}},[dj.length.toString()]):h("span",{}),
@@ -473,4 +473,5 @@ setInterval(()=>loadBoard(true),90000);
 </script>
 </body>
 </html>
+
 
