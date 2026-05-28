@@ -34,16 +34,18 @@ const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const STATUS_STYLES={
   "scheduled":         {label:"Scheduled",         bg:"#EFF6FF",color:"#1D4ED8",border:"#BFDBFE",dot:"#3B82F6"},
+  "diagnosis":         {label:"Diagnosis",          bg:"#FEFCE8",color:"#854D0E",border:"#FEF08A",dot:"#EAB308"},
   "in progress":       {label:"In Progress",        bg:"#FFFBEB",color:"#B45309",border:"#FDE68A",dot:"#F59E0B"},
   "completed":         {label:"Completed",          bg:"#F0FDF4",color:"#15803D",border:"#BBF7D0",dot:"#22C55E"},
   "waiting for parts": {label:"Waiting for Parts",  bg:"#FEF2F2",color:"#B91C1C",border:"#FECACA",dot:"#EF4444"},
 };
 const PIE_C={
-  "scheduled":"#3B82F6",
-  "in progress":"#F59E0B",
-  "completed":"#22C55E",
-  "waiting for parts":"#EF4444",
-  "other":"#9CA3AF",
+  "scheduled":         "#3B82F6",
+  "diagnosis":         "#EAB308",
+  "in progress":       "#F59E0B",
+  "completed":         "#22C55E",
+  "waiting for parts": "#EF4444",
+  "other":             "#9CA3AF",
 };
 const PRIO={
   high:{label:"High",bg:"#FEF2F2",color:"#B91C1C",border:"#FECACA"},
@@ -55,6 +57,7 @@ const statusKey=n=>{
   if(!n)return"other";
   const l=n.toLowerCase().trim();
   if(l.includes("waiting")||l.includes("parts")||l.includes("on hold"))return"waiting for parts";
+  if(l.includes("diagnosis"))return"diagnosis";
   for(const k of Object.keys(STATUS_STYLES))if(l.includes(k))return k;
   return"other";
 };
@@ -256,6 +259,7 @@ function render(){
   const filtered=jobs.filter(j=>filter==="all"||j.status===filter);
   const counts=Object.fromEntries([...Object.keys(STATUS_STYLES),"other"].map(s=>[s,jobs.filter(j=>j.status===s).length]));
 
+  // Header
   const header=h("div",{style:{background:B,height:62,display:"flex",alignItems:"center",padding:"0 24px",gap:14,position:"sticky",top:0,zIndex:10,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}});
   header.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:10}},[
     h("div",{style:{background:R,color:W,fontSize:11,fontWeight:900,padding:"6px 11px",letterSpacing:"2px",textTransform:"uppercase",clipPath:"polygon(0 0,100% 0,100% 68%,91% 100%,0 100%)"}},["Irlequip"]),
@@ -279,7 +283,8 @@ function render(){
 
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
 
-  const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
+  // KPI row — now 5 status cards + pie
+  const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
   Object.entries(STATUS_STYLES).forEach(([k,v])=>{
     const kpi=h("div",{class:`kpi${filter===k?" on":""}`,onClick:()=>setState({filter:filter===k?"all":k})},[
       h("div",{style:{position:"absolute",top:0,left:0,right:0,height:3,background:v.dot}}),
@@ -291,7 +296,8 @@ function render(){
     kpiRow.appendChild(kpi);
   });
 
-  const pieKpi=h("div",{style:{background:W,border:`1px solid ${MG}`,borderRadius:10,padding:"14px 18px",minWidth:320}});
+  // Pie chart
+  const pieKpi=h("div",{style:{background:W,border:`1px solid ${MG}`,borderRadius:10,padding:"14px 18px",minWidth:340}});
   pieKpi.appendChild(h("div",{style:{fontSize:10,fontWeight:800,letterSpacing:".1em",textTransform:"uppercase",color:R,marginBottom:10,borderBottom:`2px solid ${R}20`,paddingBottom:5}},["Status Overview"]));
   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
   svg.setAttribute("width","160");svg.setAttribute("height","160");svg.style.overflow="visible";
@@ -319,7 +325,7 @@ function render(){
   Object.entries(STATUS_STYLES).forEach(([k,v])=>{
     legend.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:8}},[
       h("span",{style:{width:10,height:10,borderRadius:2,background:PIE_C[k]}}),
-      h("span",{style:{fontSize:12,color:"#374151",fontWeight:500,minWidth:100}},[v.label]),
+      h("span",{style:{fontSize:12,color:"#374151",fontWeight:500,minWidth:110}},[v.label]),
       h("span",{style:{fontSize:13,fontWeight:800,color:B}},[(counts[k]||0).toString()]),
     ]));
   });
@@ -508,6 +514,5 @@ setInterval(()=>loadBoard(true),90000);
 </script>
 </body>
 </html>
-
 
 
