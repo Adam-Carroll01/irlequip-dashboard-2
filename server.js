@@ -1,6 +1,10 @@
 import express from "express";
 import cors from "cors";
-import { readFileSync } from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -12,14 +16,15 @@ const BASE = "https://api.trello.com/1";
 
 // Serve the dashboard HTML
 app.get("/", (req, res) => {
-  res.sendFile("index.html", { root: "." });
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Proxy all Trello API calls
-app.all("/trello/*", async (req, res) => {
-  const path = req.params[0];
+// Proxy all Trello API calls — note the (*)  wildcard syntax for Express 4
+app.all("/trello/:path(*)", async (req, res) => {
+  const trelloPath = req.params.path;
   const query = new URLSearchParams(req.query).toString();
-  const url = `${BASE}/${path}?key=${API_KEY}&token=${TOKEN}${query ? "&" + query : ""}`;
+  const url = `${BASE}/${trelloPath}?key=${API_KEY}&token=${TOKEN}${query ? "&" + query : ""}`;
+
   try {
     const response = await fetch(url, {
       method: req.method,
@@ -33,4 +38,5 @@ app.all("/trello/*", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("Irlequip Dashboard running ✅"));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Irlequip Dashboard running on port ${PORT} ✅`));
