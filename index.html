@@ -21,36 +21,44 @@ input:focus,textarea:focus,select:focus{border-color:#C8102E!important;box-shado
 .mtab.on{border-bottom-color:#C8102E;color:#fff;}
 .mtab:hover:not(.on){color:#D1D5DB;}
 @keyframes spin{to{transform:rotate(360deg)}}
+.cal-pill{font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;margin-bottom:2px;cursor:pointer;border-left:3px solid transparent;}
+.cal-pill:hover{filter:brightness(.92);}
+.cp-scheduled{background:#EBF5FB;color:#1A5276;border-left-color:#2E86C1;}
+.cp-diagnosis{background:#FEFAE6;color:#7D6608;border-left-color:#E6B800;}
+.cp-in-progress{background:#FEF0E6;color:#784212;border-left-color:#E67E22;}
+.cp-completed{background:#E9F7EF;color:#1D6A3A;border-left-color:#27AE60;}
+.cp-waiting{background:#FEF2F2;color:#7E1C1C;border-left-color:#C0392B;}
+.cp-other{background:#F3F4F6;color:#374151;border-left-color:#9CA3AF;}
 </style>
 </head>
 <body>
 <div id="app"></div>
 <script>
-const PROXY = "";
-const BOARD_ID = "qEvYkGds";
+const PROXY="";
+const BOARD_ID="qEvYkGds";
 const R="#C8102E",B="#111",W="#fff",LG="#F8F9FB",MG="#E5E7EB";
 const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 
 const STATUS_STYLES={
-  "scheduled":         {label:"Scheduled",         bg:"#EFF6FF",color:"#1D4ED8",border:"#BFDBFE",dot:"#3B82F6"},
-  "diagnosis":         {label:"Diagnosis",          bg:"#FEFCE8",color:"#854D0E",border:"#FEF08A",dot:"#EAB308"},
-  "in progress":       {label:"In Progress",        bg:"#FFFBEB",color:"#B45309",border:"#FDE68A",dot:"#F59E0B"},
-  "completed":         {label:"Completed",          bg:"#F0FDF4",color:"#15803D",border:"#BBF7D0",dot:"#22C55E"},
-  "waiting for parts": {label:"Waiting for Parts",  bg:"#FEF2F2",color:"#B91C1C",border:"#FECACA",dot:"#EF4444"},
+  "scheduled":        {label:"Scheduled",        bg:"#EBF5FB",color:"#1A5276",border:"#AED6F1",dot:"#2E86C1"},
+  "diagnosis":        {label:"Diagnosis",         bg:"#FEFAE6",color:"#7D6608",border:"#F9E79F",dot:"#E6B800"},
+  "in progress":      {label:"In Progress",       bg:"#FEF0E6",color:"#784212",border:"#FAD7A0",dot:"#E67E22"},
+  "completed":        {label:"Completed",         bg:"#E9F7EF",color:"#1D6A3A",border:"#A9DFBF",dot:"#27AE60"},
+  "waiting for parts":{label:"Waiting for Parts", bg:"#FEF2F2",color:"#7E1C1C",border:"#FECACA",dot:"#C0392B"},
 };
 const PIE_C={
-  "scheduled":         "#3B82F6",
-  "diagnosis":         "#EAB308",
-  "in progress":       "#F59E0B",
-  "completed":         "#22C55E",
-  "waiting for parts": "#EF4444",
-  "other":             "#9CA3AF",
+  "scheduled":"#2E86C1","diagnosis":"#E6B800","in progress":"#E67E22",
+  "completed":"#27AE60","waiting for parts":"#C0392B","other":"#9CA3AF",
 };
 const PRIO={
   high:{label:"High",bg:"#FEF2F2",color:"#B91C1C",border:"#FECACA"},
   medium:{label:"Medium",bg:"#FFFBEB",color:"#92400E",border:"#FDE68A"},
   low:{label:"Low",bg:"#F9FAFB",color:"#374151",border:"#E5E7EB"},
+};
+const CAL_CLASS={
+  "scheduled":"cp-scheduled","diagnosis":"cp-diagnosis","in progress":"cp-in-progress",
+  "completed":"cp-completed","waiting for parts":"cp-waiting",
 };
 
 const statusKey=n=>{
@@ -156,7 +164,6 @@ function renderModal(){
   ]));
 
   const body=h("div",{style:{padding:22,display:"grid",gap:16,maxHeight:"65vh",overflowY:"auto"}});
-
   const g2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}});
   g2.appendChild(field("Job Number",textInput("jobNo",form.jobNo,"IRL-0001")));
   g2.appendChild(field("Title",textInput("title",form.title,"e.g. Annual Inspection")));
@@ -259,7 +266,6 @@ function render(){
   const filtered=jobs.filter(j=>filter==="all"||j.status===filter);
   const counts=Object.fromEntries([...Object.keys(STATUS_STYLES),"other"].map(s=>[s,jobs.filter(j=>j.status===s).length]));
 
-  // Header
   const header=h("div",{style:{background:B,height:62,display:"flex",alignItems:"center",padding:"0 24px",gap:14,position:"sticky",top:0,zIndex:10,boxShadow:"0 2px 12px rgba(0,0,0,.3)"}});
   header.appendChild(h("div",{style:{display:"flex",alignItems:"center",gap:10}},[
     h("div",{style:{background:R,color:W,fontSize:11,fontWeight:900,padding:"6px 11px",letterSpacing:"2px",textTransform:"uppercase",clipPath:"polygon(0 0,100% 0,100% 68%,91% 100%,0 100%)"}},["Irlequip"]),
@@ -283,20 +289,16 @@ function render(){
 
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
 
-  // KPI row — now 5 status cards + pie
   const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
   Object.entries(STATUS_STYLES).forEach(([k,v])=>{
     const kpi=h("div",{class:`kpi${filter===k?" on":""}`,onClick:()=>setState({filter:filter===k?"all":k})},[
-      h("div",{style:{position:"absolute",top:0,left:0,right:0,height:3,background:v.dot}}),
-      h("div",{style:{fontSize:36,fontWeight:900,color:B,lineHeight:1}},[(counts[k]||0).toString()]),
-      h("div",{style:{fontSize:10,fontWeight:600,letterSpacing:".07em",textTransform:"uppercase",color:"#6B7280",marginTop:4,display:"flex",alignItems:"center",gap:5}},[
-        h("span",{style:{width:7,height:7,borderRadius:"50%",background:v.dot}}),v.label,
-      ]),
+      h("div",{style:{position:"absolute",top:0,left:0,bottom:0,width:4,background:v.dot,borderRadius:"10px 0 0 10px"}}),
+      h("div",{style:{fontSize:36,fontWeight:900,color:B,lineHeight:1,paddingLeft:8}},[(counts[k]||0).toString()]),
+      h("div",{style:{fontSize:10,fontWeight:700,letterSpacing:".07em",textTransform:"uppercase",color:v.dot,marginTop:4,paddingLeft:8}},[v.label]),
     ]);
     kpiRow.appendChild(kpi);
   });
 
-  // Pie chart
   const pieKpi=h("div",{style:{background:W,border:`1px solid ${MG}`,borderRadius:10,padding:"14px 18px",minWidth:340}});
   pieKpi.appendChild(h("div",{style:{fontSize:10,fontWeight:800,letterSpacing:".1em",textTransform:"uppercase",color:R,marginBottom:10,borderBottom:`2px solid ${R}20`,paddingBottom:5}},["Status Overview"]));
   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
@@ -397,7 +399,7 @@ function render(){
         boardWrap.appendChild(sec);
       });
       content.appendChild(boardWrap);
-    } else {
+    }else{
       const table=h("div",{style:{background:W,border:`1px solid ${MG}`,borderRadius:10,overflow:"hidden"}});
       const thead=h("div",{style:{display:"grid",gridTemplateColumns:"2fr 1.5fr 1fr 1fr 1fr 1fr auto",background:LG,borderBottom:`2px solid ${MG}`,padding:"10px 14px",gap:8}});
       ["Title","Machine","Technician","Parts","List","Due",""].forEach(t=>thead.appendChild(h("div",{style:{fontSize:10,fontWeight:700,color:"#9CA3AF",letterSpacing:".08em",textTransform:"uppercase"}},[t])));
@@ -425,32 +427,42 @@ function render(){
     window._calState=calState;
     const calWrap=h("div",{style:{display:"flex",gap:16,alignItems:"flex-start",height:"calc(100vh - 180px)"}});
     const cal=h("div",{style:{flex:1,background:W,border:`1px solid ${MG}`,borderRadius:10,overflow:"hidden",minWidth:0,display:"flex",flexDirection:"column",height:"100%"}});
-    const calHeader=h("div",{style:{background:B,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between"}});
-    calHeader.appendChild(h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:16},onClick:()=>{window._calState={...calState,m:calState.m===0?11:calState.m-1,y:calState.m===0?calState.y-1:calState.y};render();}},["‹"]));
+    const calHeader=h("div",{style:{background:B,padding:"14px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0}});
+    calHeader.appendChild(h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:16},onClick:()=>{window._calState={...calState,m:calState.m===0?11:calState.m-1,y:calState.m===0?calState.y-1:calState.y,sel:null};render();}},["‹"]));
     calHeader.appendChild(h("div",{style:{color:W,fontWeight:800,fontSize:16}},[`${MONTHS[calState.m]} ${calState.y}`]));
-    calHeader.appendChild(h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:16},onClick:()=>{window._calState={...calState,m:calState.m===11?0:calState.m+1,y:calState.m===11?calState.y+1:calState.y};render();}},["›"]));
+    calHeader.appendChild(h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:30,height:30,borderRadius:6,cursor:"pointer",fontSize:16},onClick:()=>{window._calState={...calState,m:calState.m===11?0:calState.m+1,y:calState.m===11?calState.y+1:calState.y,sel:null};render();}},["›"]));
     cal.appendChild(calHeader);
-    const dayHeaders=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:LG,borderBottom:`1px solid ${MG}`}});
-    DAYS.forEach(d=>dayHeaders.appendChild(h("div",{style:{padding:"8px 4px",textAlign:"center",fontSize:10,fontWeight:800,color:"#9CA3AF",letterSpacing:".08em"}},[d])));
+    const MON_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+    const dayHeaders=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:LG,borderBottom:`1px solid ${MG}`,flexShrink:0}});
+    MON_DAYS.forEach(d=>dayHeaders.appendChild(h("div",{style:{padding:"8px 4px",textAlign:"center",fontSize:10,fontWeight:800,color:"#9CA3AF",letterSpacing:".08em"}},[d])));
     cal.appendChild(dayHeaders);
     const grid2=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",flex:1,overflowY:"auto"}});
-    const firstDay=new Date(calState.y,calState.m,1).getDay();
+    const rawFirst=new Date(calState.y,calState.m,1).getDay();
+    const firstDow=rawFirst===0?6:rawFirst-1;
     const dim=new Date(calState.y,calState.m+1,0).getDate();
     const pad=n=>String(n).padStart(2,"0");
     const ds=d=>`${calState.y}-${pad(calState.m+1)}-${pad(d)}`;
-    for(let i=0;i<firstDay;i++)grid2.appendChild(h("div",{style:{minHeight:72,background:LG,borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`}}));
+    for(let i=0;i<firstDow;i++){
+      grid2.appendChild(h("div",{style:{minHeight:120,background:LG,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`}}));
+    }
     for(let d=1;d<=dim;d++){
       const dstr=ds(d);
       const dj=jobs.filter(j=>j.start<=dstr&&j.end>=dstr);
       const isTod=now.getFullYear()===calState.y&&now.getMonth()===calState.m&&now.getDate()===d;
       const isSel=calState.sel===d;
-      const cell=h("div",{style:{minHeight:"calc((100vh - 280px) / 6)",borderRight:`1px solid ${LG}`,borderBottom:`1px solid ${LG}`,padding:6,cursor:"pointer",background:isSel?"#FFF0F2":W},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
-      cell.appendChild(h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}},[
-        h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center"}},[d.toString()]),
-        dj.length?h("span",{style:{fontSize:9,fontWeight:800,color:R,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"1px 5px"}},[dj.length.toString()]):h("span",{}),
-      ]));
-      dj.slice(0,4).forEach(j=>{const s=statusObj(j.status);cell.appendChild(h("div",{style:{fontSize:10,fontWeight:700,padding:"3px 6px",borderRadius:3,background:s.bg,color:s.color,overflow:"hidden",whiteSpace:"nowrap",textOverflow:"ellipsis",marginBottom:2,cursor:"pointer"},onClick:e=>{e.stopPropagation();setState({modal:{...j}});}},[j.title]));});
-      if(dj.length>4)cell.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",paddingLeft:2}},["+"+(dj.length-4)+" more"]));
+      const cell=h("div",{style:{minHeight:120,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`,padding:5,cursor:"pointer",background:isSel?"#FFF0F2":W,display:"flex",flexDirection:"column"},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
+      const numRow=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}});
+      numRow.appendChild(h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},[d.toString()]));
+      if(dj.length>0)numRow.appendChild(h("span",{style:{fontSize:9,fontWeight:800,color:R,background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"1px 5px"}},[dj.length.toString()]));
+      cell.appendChild(numRow);
+      const maxPills=3;
+      dj.slice(0,maxPills).forEach(j=>{
+        const cls=CAL_CLASS[j.status]||"cp-other";
+        const pill=h("div",{class:`cal-pill ${cls}`,onClick:e=>{e.stopPropagation();setState({modal:{...j}});}});
+        pill.textContent=j.title;pill.title=j.title;
+        cell.appendChild(pill);
+      });
+      if(dj.length>maxPills)cell.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",padding:"1px 4px",cursor:"pointer"},onClick:e=>{e.stopPropagation();window._calState={...calState,sel:d};render();}},["+"+(dj.length-maxPills)+" more"]));
       grid2.appendChild(cell);
     }
     cal.appendChild(grid2);
@@ -469,6 +481,8 @@ function render(){
       const card=h("div",{style:{background:LG,border:`1px solid ${MG}`,borderLeft:`3px solid ${s.dot}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"},onClick:()=>setState({modal:{...j}})});
       card.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:B}},[j.title]));
       card.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF"}},[j.machine||""]));
+      if(j.technician)card.appendChild(h("div",{style:{fontSize:10,color:"#6B7280",marginTop:2}},["👷 "+j.technician]));
+      card.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",marginTop:2}},[j.end||""]));
       panelBody.appendChild(card);
     });
     panel.appendChild(panelBody);
@@ -514,5 +528,3 @@ setInterval(()=>loadBoard(true),90000);
 </script>
 </body>
 </html>
-
-
