@@ -106,25 +106,28 @@ const buildDesc=form=>{
   return lines.join("\n").trim();
 };
 
-async function applyPartsLabel(cardId,partsReady,currentLabels){
+async function applyPartsLabel(cardId,partsReady){
   if(!partsReady)return;
   try{
     const colorMap={yes:"green",partially:"orange",no:"red"};
     const targetColor=colorMap[partsReady];
     if(!targetColor)return;
+    // Get all board labels
     const bl=await tGet(`boards/${BOARD_ID}/labels`);
-    console.log("board labels",bl);
     const partsColors=["green","orange","red"];
-    const currentIds=(currentLabels||[]).map(l=>l.id);
-    const toRemove=bl.filter(l=>partsColors.includes(l.color)&&currentIds.includes(l.id));
-    await Promise.allSettled(toRemove.map(l=>fetch(`/trello/cards/${cardId}/idLabels/${l.id}`,{method:"DELETE"})));
+    const partsLabelIds=bl.filter(l=>partsColors.includes(l.color)).map(l=>l.id);
+    // Fetch the card's LIVE current labels fresh from Trello
+    const liveCard=await tGet(`cards/${cardId}?fields=idLabels`);
+    const liveIds=(liveCard.idLabels||[]);
+    // Remove any green/orange/red labels currently on the card
+    await Promise.allSettled(
+      partsLabelIds
+        .filter(id=>liveIds.includes(id))
+        .map(id=>fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"}))
+    );
+    // Add the correct one
     const target=bl.find(l=>l.color===targetColor);
-    if(target){
-      await tPost(`cards/${cardId}/idLabels`,{value:target.id});
-      console.log("label applied",target);
-    }else{
-      console.warn("no label found for color",targetColor);
-    }
+    if(target)await tPost(`cards/${cardId}/idLabels`,{value:target.id});
   }catch(e){console.warn("applyPartsLabel failed:",e.message);}
 }
 
@@ -230,12 +233,12 @@ function renderModal(){
       if(isNew){
         const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T08:00:00.000Z":null});
         setState({jobs:[...state.jobs,cardToJob({...card,checklists:[]},lists)],modal:null});
-        applyPartsLabel(card.id,form.partsReady,[]);
+        applyPartsLabel(card.id,form.partsReady);
       }else{
         await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T08:00:00.000Z":null});
         const updatedJob={...form,listId:targetList.id,listName:targetList.name,status:statusKey(targetList.name)};
         setState({jobs:state.jobs.map(j=>j.id===form.id?updatedJob:j),modal:null});
-        applyPartsLabel(form.id,form.partsReady,form.labels);
+        applyPartsLabel(form.id,form.partsReady);
       }
     }catch(e){errDiv.textContent="Error: "+e.message;errDiv.style.display="block";saveBtn.textContent=isNew?"Create in Trello":"Save to Trello";saveBtn.disabled=false;}
   });
