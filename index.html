@@ -112,20 +112,17 @@ async function applyPartsLabel(cardId,partsReady){
     const colorMap={yes:"green",partially:"orange",no:"red"};
     const targetColor=colorMap[partsReady];
     if(!targetColor)return;
-    // Get all board labels
     const bl=await tGet(`boards/${BOARD_ID}/labels`);
     const partsColors=["green","orange","red"];
     const partsLabelIds=bl.filter(l=>partsColors.includes(l.color)).map(l=>l.id);
-    // Fetch the card's LIVE current labels fresh from Trello
     const liveCard=await tGet(`cards/${cardId}?fields=idLabels`);
     const liveIds=(liveCard.idLabels||[]);
-    // Remove any green/orange/red labels currently on the card
-    await Promise.allSettled(
-      partsLabelIds
-        .filter(id=>liveIds.includes(id))
-        .map(id=>fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"}))
-    );
-    // Add the correct one
+    const toRemove=partsLabelIds.filter(id=>liveIds.includes(id));
+    // Remove sequentially with delay so Trello processes each before the next
+    for(const id of toRemove){
+      try{await fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"});}catch(_){}
+      await new Promise(res=>setTimeout(res,200));
+    }
     const target=bl.find(l=>l.color===targetColor);
     if(target)await tPost(`cards/${cardId}/idLabels`,{value:target.id});
   }catch(e){console.warn("applyPartsLabel failed:",e.message);}
