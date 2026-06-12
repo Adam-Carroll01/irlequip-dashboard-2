@@ -106,31 +106,26 @@ const buildDesc=form=>{
   return lines.join("\n").trim();
 };
 
-const PARTS_COLOR={yes:"green",partially:"orange",no:"red"};
-const PARTS_NAME={yes:"Parts Ready",partially:"Parts Partial",no:"Parts Unavailable"};
-
 async function applyPartsLabel(cardId,partsReady,currentLabels){
   if(!partsReady)return;
   try{
-    const boardLabels=await tGet(`boards/${BOARD_ID}/labels?limit=100`);
-    const labelMap={};
-    for(const key of["yes","partially","no"]){
-      const existing=boardLabels.find(l=>l.name===PARTS_NAME[key]&&l.color===PARTS_COLOR[key]);
-      if(existing){
-        labelMap[key]=existing.id;
-      }else{
-        const created=await tPost(`boards/${BOARD_ID}/labels`,{name:PARTS_NAME[key],color:PARTS_COLOR[key]});
-        labelMap[key]=created.id;
-      }
-    }
+    const colorMap={yes:"green",partially:"orange",no:"red"};
+    const targetColor=colorMap[partsReady];
+    if(!targetColor)return;
+    const bl=await tGet(`boards/${BOARD_ID}/labels`);
+    console.log("board labels",bl);
+    const partsColors=["green","orange","red"];
     const currentIds=(currentLabels||[]).map(l=>l.id);
-    await Promise.allSettled(
-      Object.values(labelMap)
-        .filter(id=>currentIds.includes(id))
-        .map(id=>fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"}))
-    );
-    await tPost(`cards/${cardId}/idLabels`,{value:labelMap[partsReady]});
-  }catch(e){console.warn("Parts label skipped:",e.message);}
+    const toRemove=bl.filter(l=>partsColors.includes(l.color)&&currentIds.includes(l.id));
+    await Promise.allSettled(toRemove.map(l=>fetch(`/trello/cards/${cardId}/idLabels/${l.id}`,{method:"DELETE"})));
+    const target=bl.find(l=>l.color===targetColor);
+    if(target){
+      await tPost(`cards/${cardId}/idLabels`,{value:target.id});
+      console.log("label applied",target);
+    }else{
+      console.warn("no label found for color",targetColor);
+    }
+  }catch(e){console.warn("applyPartsLabel failed:",e.message);}
 }
 
 let state={jobs:[],lists:[],loading:true,error:"",tab:"jobs",view:"board",filter:"all",syncing:false,lastSync:null,modal:null};
@@ -234,13 +229,13 @@ function renderModal(){
       const cardName=`${form.jobNo?form.jobNo+" ":""}${form.title}`;
       if(isNew){
         const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T08:00:00.000Z":null});
-        await applyPartsLabel(card.id,form.partsReady,[]);
         setState({jobs:[...state.jobs,cardToJob({...card,checklists:[]},lists)],modal:null});
+        applyPartsLabel(card.id,form.partsReady,[]);
       }else{
         await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T08:00:00.000Z":null});
-        await applyPartsLabel(form.id,form.partsReady,form.labels);
         const updatedJob={...form,listId:targetList.id,listName:targetList.name,status:statusKey(targetList.name)};
         setState({jobs:state.jobs.map(j=>j.id===form.id?updatedJob:j),modal:null});
+        applyPartsLabel(form.id,form.partsReady,form.labels);
       }
     }catch(e){errDiv.textContent="Error: "+e.message;errDiv.style.display="block";saveBtn.textContent=isNew?"Create in Trello":"Save to Trello";saveBtn.disabled=false;}
   });
