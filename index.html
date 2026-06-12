@@ -81,7 +81,7 @@ const prioFromLabels=ls=>{
 const tGet=async p=>{const r=await fetch(`/trello/${p}`);if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPost=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPut=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
-const tDel=async p=>{const r=await fetch(`/trello/${p}`,{method:"DELETE"});return r;};
+const tDel=async p=>{try{await fetch(`/trello/${p}`,{method:"DELETE"});}catch(_){}};
 
 const cardToJob=(card,lists)=>{
   const list=lists.find(l=>l.id===card.idList);
@@ -108,9 +108,9 @@ const buildDesc=form=>{
 };
 
 const PARTS_LABELS=[
-  {key:"yes",   color:"green",  name:"✅ Parts Ready"},
-  {key:"partially",color:"orange",name:"⚠️ Parts Partial"},
-  {key:"no",    color:"red",    name:"❌ Parts Unavailable"},
+  {key:"yes",      color:"green",  name:"✅ Parts Ready"},
+  {key:"partially",color:"orange", name:"⚠️ Parts Partial"},
+  {key:"no",       color:"red",    name:"❌ Parts Unavailable"},
 ];
 
 async function ensurePartsLabels(){
@@ -127,9 +127,11 @@ async function ensurePartsLabels(){
 async function applyPartsLabel(cardId,partsReady){
   if(!partsReady)return;
   const labelIds=await ensurePartsLabels();
-  for(const def of PARTS_LABELS){
-    try{await tDel(`cards/${cardId}/idLabels/${labelIds[def.key]}`);}catch(_){}
-  }
+  // Remove all three parts labels silently — Trello errors if label isn't on card, that's fine
+  await Promise.allSettled(
+    PARTS_LABELS.map(def=>fetch(`/trello/cards/${cardId}/idLabels/${labelIds[def.key]}`,{method:"DELETE"}))
+  );
+  // Add the correct label
   await tPost(`cards/${cardId}/idLabels`,{value:labelIds[partsReady]});
 }
 
