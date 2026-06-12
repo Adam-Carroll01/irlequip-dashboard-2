@@ -106,35 +106,31 @@ const buildDesc=form=>{
   return lines.join("\n").trim();
 };
 
-const PARTS_LABELS=[
-  {key:"yes",      color:"green",  name:"✅ Parts Ready"},
-  {key:"partially",color:"orange", name:"⚠️ Parts Partial"},
-  {key:"no",       color:"red",    name:"❌ Parts Unavailable"},
-];
-
-async function ensurePartsLabels(){
-  const boardLabels=await tGet(`boards/${BOARD_ID}/labels?limit=100`);
-  const result={};
-  for(const def of PARTS_LABELS){
-    const existing=boardLabels.find(l=>l.name===def.name&&l.color===def.color);
-    if(existing){result[def.key]=existing.id;}
-    else{const nl=await tPost(`labels`,{name:def.name,color:def.color,idBoard:BOARD_ID});result[def.key]=nl.id;}
-  }
-  return result;
-}
+const PARTS_COLOR={yes:"green",partially:"orange",no:"red"};
+const PARTS_NAME={yes:"Parts Ready",partially:"Parts Partial",no:"Parts Unavailable"};
 
 async function applyPartsLabel(cardId,partsReady,currentLabels){
   if(!partsReady)return;
-  const labelIds=await ensurePartsLabels();
-  const currentLabelIds=(currentLabels||[]).map(l=>l.id);
-  // Only DELETE labels that are actually on the card right now
-  await Promise.allSettled(
-    PARTS_LABELS
-      .filter(def=>currentLabelIds.includes(labelIds[def.key]))
-      .map(def=>fetch(`/trello/cards/${cardId}/idLabels/${labelIds[def.key]}`,{method:"DELETE"}))
-  );
-  // Add the correct label
-  await tPost(`cards/${cardId}/idLabels`,{value:labelIds[partsReady]});
+  try{
+    const boardLabels=await tGet(`boards/${BOARD_ID}/labels?limit=100`);
+    const labelMap={};
+    for(const key of["yes","partially","no"]){
+      const existing=boardLabels.find(l=>l.name===PARTS_NAME[key]&&l.color===PARTS_COLOR[key]);
+      if(existing){
+        labelMap[key]=existing.id;
+      }else{
+        const created=await tPost(`boards/${BOARD_ID}/labels`,{name:PARTS_NAME[key],color:PARTS_COLOR[key]});
+        labelMap[key]=created.id;
+      }
+    }
+    const currentIds=(currentLabels||[]).map(l=>l.id);
+    await Promise.allSettled(
+      Object.values(labelMap)
+        .filter(id=>currentIds.includes(id))
+        .map(id=>fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"}))
+    );
+    await tPost(`cards/${cardId}/idLabels`,{value:labelMap[partsReady]});
+  }catch(e){console.warn("Parts label skipped:",e.message);}
 }
 
 let state={jobs:[],lists:[],loading:true,error:"",tab:"jobs",view:"board",filter:"all",syncing:false,lastSync:null,modal:null};
