@@ -81,7 +81,6 @@ const prioFromLabels=ls=>{
 const tGet=async p=>{const r=await fetch(`/trello/${p}`);if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPost=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPut=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
-const tDel=async p=>{try{await fetch(`/trello/${p}`,{method:"DELETE"});}catch(_){}};
 
 const cardToJob=(card,lists)=>{
   const list=lists.find(l=>l.id===card.idList);
@@ -124,12 +123,15 @@ async function ensurePartsLabels(){
   return result;
 }
 
-async function applyPartsLabel(cardId,partsReady){
+async function applyPartsLabel(cardId,partsReady,currentLabels){
   if(!partsReady)return;
   const labelIds=await ensurePartsLabels();
-  // Remove all three parts labels silently — Trello errors if label isn't on card, that's fine
+  const currentLabelIds=(currentLabels||[]).map(l=>l.id);
+  // Only DELETE labels that are actually on the card right now
   await Promise.allSettled(
-    PARTS_LABELS.map(def=>fetch(`/trello/cards/${cardId}/idLabels/${labelIds[def.key]}`,{method:"DELETE"}))
+    PARTS_LABELS
+      .filter(def=>currentLabelIds.includes(labelIds[def.key]))
+      .map(def=>fetch(`/trello/cards/${cardId}/idLabels/${labelIds[def.key]}`,{method:"DELETE"}))
   );
   // Add the correct label
   await tPost(`cards/${cardId}/idLabels`,{value:labelIds[partsReady]});
@@ -236,11 +238,11 @@ function renderModal(){
       const cardName=`${form.jobNo?form.jobNo+" ":""}${form.title}`;
       if(isNew){
         const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T08:00:00.000Z":null});
-        await applyPartsLabel(card.id,form.partsReady);
+        await applyPartsLabel(card.id,form.partsReady,[]);
         setState({jobs:[...state.jobs,cardToJob({...card,checklists:[]},lists)],modal:null});
       }else{
         await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T08:00:00.000Z":null});
-        await applyPartsLabel(form.id,form.partsReady);
+        await applyPartsLabel(form.id,form.partsReady,form.labels);
         const updatedJob={...form,listId:targetList.id,listName:targetList.name,status:statusKey(targetList.name)};
         setState({jobs:state.jobs.map(j=>j.id===form.id?updatedJob:j),modal:null});
       }
@@ -305,7 +307,7 @@ function render(){
   ]));
   if(lastSync)header.appendChild(h("span",{style:{fontSize:10,color:"#4B5563"}},["Synced "+lastSync.toLocaleTimeString()]));
   header.appendChild(h("button",{style:{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",color:"#9CA3AF",padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",borderRadius:5},onClick:()=>loadBoard(true)},["↻ Refresh"]));
-  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",parts:[]}})},[h("span",{},["+ New Card"])]));
+  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",{},["+ New Card"])]));
   app.appendChild(header);
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
   const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
