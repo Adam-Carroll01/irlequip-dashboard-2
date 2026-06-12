@@ -81,6 +81,7 @@ const prioFromLabels=ls=>{
 const tGet=async p=>{const r=await fetch(`/trello/${p}`);if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPost=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPut=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
+const tDel=async p=>{const r=await fetch(`/trello/${p}`,{method:"DELETE"});return r;};
 
 const cardToJob=(card,lists)=>{
   const list=lists.find(l=>l.id===card.idList);
@@ -105,6 +106,32 @@ const buildDesc=form=>{
   if(form.notes)lines.push("",form.notes);
   return lines.join("\n").trim();
 };
+
+const PARTS_LABELS=[
+  {key:"yes",   color:"green",  name:"✅ Parts Ready"},
+  {key:"partially",color:"orange",name:"⚠️ Parts Partial"},
+  {key:"no",    color:"red",    name:"❌ Parts Unavailable"},
+];
+
+async function ensurePartsLabels(){
+  const boardLabels=await tGet(`boards/${BOARD_ID}/labels?limit=100`);
+  const result={};
+  for(const def of PARTS_LABELS){
+    const existing=boardLabels.find(l=>l.name===def.name&&l.color===def.color);
+    if(existing){result[def.key]=existing.id;}
+    else{const nl=await tPost(`labels`,{name:def.name,color:def.color,idBoard:BOARD_ID});result[def.key]=nl.id;}
+  }
+  return result;
+}
+
+async function applyPartsLabel(cardId,partsReady){
+  if(!partsReady)return;
+  const labelIds=await ensurePartsLabels();
+  for(const def of PARTS_LABELS){
+    try{await tDel(`cards/${cardId}/idLabels/${labelIds[def.key]}`);}catch(_){}
+  }
+  await tPost(`cards/${cardId}/idLabels`,{value:labelIds[partsReady]});
+}
 
 let state={jobs:[],lists:[],loading:true,error:"",tab:"jobs",view:"board",filter:"all",syncing:false,lastSync:null,modal:null};
 const setState=patch=>{state={...state,...patch};render();};
@@ -200,13 +227,18 @@ function renderModal(){
     saveBtn.textContent="Saving…";saveBtn.disabled=true;
     try{
       const desc=buildDesc(form);
-      const targetList=lists.find(l=>l.id===form.listId)||lists[0];
+      const waitingList=lists.find(l=>statusKey(l.name)==="waiting for parts");
+      const targetList=(["no","partially"].includes(form.partsReady)&&waitingList)
+        ?waitingList
+        :(lists.find(l=>l.id===form.listId)||lists[0]);
       const cardName=`${form.jobNo?form.jobNo+" ":""}${form.title}`;
       if(isNew){
-        const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end||null});
+        const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T08:00:00.000Z":null});
+        await applyPartsLabel(card.id,form.partsReady);
         setState({jobs:[...state.jobs,cardToJob({...card,checklists:[]},lists)],modal:null});
       }else{
-        await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end||null});
+        await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T08:00:00.000Z":null});
+        await applyPartsLabel(form.id,form.partsReady);
         const updatedJob={...form,listId:targetList.id,listName:targetList.name,status:statusKey(targetList.name)};
         setState({jobs:state.jobs.map(j=>j.id===form.id?updatedJob:j),modal:null});
       }
@@ -507,6 +539,3 @@ setInterval(()=>loadBoard(true),90000);
 </script>
 </body>
 </html>
-
-
-
