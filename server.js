@@ -21,20 +21,17 @@ app.get("/", (req, res) => {
 app.all("/trello/:path(*)", async (req, res) => {
   const trelloPath = req.params.path;
 
-  // Merge query params + body into one params object (Trello accepts everything as query params)
-  const params = new URLSearchParams({
-    key: API_KEY,
-    token: TOKEN,
-    ...req.query,
-    ...(["POST", "PUT"].includes(req.method) ? req.body : {}),
-  });
+  // Auth always goes in query string
+  const qp = new URLSearchParams({ key: API_KEY, token: TOKEN, ...req.query });
+  const url = `${BASE}/${trelloPath}?${qp.toString()}`;
 
-  const url = `${BASE}/${trelloPath}?${params.toString()}`;
-
+  // For PUT/POST send body as JSON so multiline fields (desc) are preserved correctly
+  const isWrite = ["POST", "PUT"].includes(req.method);
   try {
     const response = await fetch(url, {
       method: req.method,
       headers: { "Content-Type": "application/json" },
+      body: isWrite && Object.keys(req.body || {}).length ? JSON.stringify(req.body) : undefined,
     });
     const data = await response.json();
     res.status(response.status).json(data);
