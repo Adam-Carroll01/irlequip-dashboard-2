@@ -29,6 +29,7 @@ input:focus,textarea:focus,select:focus{border-color:#C8102E!important;box-shado
 .cp-completed{background:#D6F5E3;color:#0A4D2A;border-left-color:#00B248;}
 .cp-waiting{background:#FFD6D6;color:#7A0000;border-left-color:#E50000;}
 .cp-other{background:#F3F4F6;color:#374151;border-left-color:#9CA3AF;}
+.cp-saturday{background:#F3E8FF;color:#5B21B6;border-left-color:#7C3AED;}
 </style>
 </head>
 <body>
@@ -46,10 +47,11 @@ const STATUS_STYLES={
   "in progress":       {label:"In Progress",        bg:"#FFF0D6",color:"#7A3200",border:"#FF9A3C",dot:"#FF6B00"},
   "completed":         {label:"Completed",          bg:"#D6F5E3",color:"#0A4D2A",border:"#34D27A",dot:"#00B248"},
   "waiting for parts": {label:"Waiting for Parts",  bg:"#FFD6D6",color:"#7A0000",border:"#FF5C5C",dot:"#E50000"},
+  "saturday work":     {label:"Saturday Work",      bg:"#F3E8FF",color:"#5B21B6",border:"#C4B5FD",dot:"#7C3AED"},
 };
 const PIE_C={
   "scheduled":"#1A73E8","diagnosis":"#FFB800","in progress":"#FF6B00",
-  "completed":"#00B248","waiting for parts":"#E50000","other":"#9CA3AF",
+  "completed":"#00B248","waiting for parts":"#E50000","saturday work":"#7C3AED","other":"#9CA3AF",
 };
 const PRIO={
   high:{label:"High",bg:"#FEF2F2",color:"#B91C1C",border:"#FECACA"},
@@ -58,13 +60,14 @@ const PRIO={
 };
 const CAL_CLASS={
   "scheduled":"cp-scheduled","diagnosis":"cp-diagnosis","in progress":"cp-in-progress",
-  "completed":"cp-completed","waiting for parts":"cp-waiting",
+  "completed":"cp-completed","waiting for parts":"cp-waiting","saturday work":"cp-saturday",
 };
 
 const statusKey=n=>{
   if(!n)return"other";
   const l=n.toLowerCase().trim();
-  if(l.includes("waiting")||l.includes("parts")||l.includes("on hold"))return"waiting for parts";
+  if(l.includes("waiting")||l.includes("on hold"))return"waiting for parts";
+  if(l.includes("saturday"))return"saturday work";
   if(l.includes("diagnosis"))return"diagnosis";
   for(const k of Object.keys(STATUS_STYLES))if(l.includes(k))return k;
   return"other";
@@ -304,7 +307,7 @@ function render(){
   header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",{},"+ New Card")]));
   app.appendChild(header);
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
-  const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
+  const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
   Object.entries(STATUS_STYLES).forEach(([k,v])=>{
     const kpi=h("div",{class:`kpi${filter===k?" on":""}`,style:{background:v.bg,borderColor:v.border},onClick:()=>setState({filter:filter===k?"all":k})},[
       h("div",{style:{position:"absolute",top:0,left:0,bottom:0,width:4,background:v.dot,borderRadius:"10px 0 0 10px"}}),
