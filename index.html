@@ -88,7 +88,7 @@ const cardToJob=(card,lists)=>{
   const due=card.due?card.due.split("T")[0]:null;
   const startDate=card.start?card.start.split("T")[0]:null;
   const lines=(card.desc||"").split("\n");
-  const getLine=prefix=>lines.find(l=>new RegExp(`^${prefix}:`,"i").test(l))?.replace(new RegExp(`^${prefix}:\\s*`,"i"),"").trim()||"";
+  const getLine=prefix=>lines.find(l=>new RegExp(`^${prefix}:`,"i").test(l))?.replace(new RegExp(`^${prefix}:\\s*`,"i"),"").replace(/\r/g,"").trim()||"";
   const machine=getLine("Machine");
   const brand=getLine("Brand");
   const technician=getLine("Technician");
@@ -110,12 +110,10 @@ const buildDesc=form=>{
 async function applyPartsLabel(cardId,partsReady){
   if(!partsReady)return;
   try{
-    // Map to specific label names — never match by colour so priority labels are never touched
     const nameMap={yes:"Parts Ready",partially:"Parts Partial",no:"Parts Unavailable"};
     const targetName=nameMap[partsReady];
     if(!targetName)return;
     const bl=await tGet(`boards/${BOARD_ID}/labels`);
-    // Only consider labels whose name contains "Parts"
     const partsLabelIds=bl.filter(l=>(l.name||"").toLowerCase().includes("parts")).map(l=>l.id);
     const liveCard=await tGet(`cards/${cardId}?fields=idLabels`);
     const liveIds=(liveCard.idLabels||[]);
@@ -124,7 +122,6 @@ async function applyPartsLabel(cardId,partsReady){
       try{await fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"});}catch(_){}
       await new Promise(res=>setTimeout(res,200));
     }
-    // Find the target label by name; create it if missing
     let target=bl.find(l=>(l.name||"").toLowerCase()===targetName.toLowerCase());
     if(!target){
       const colorMap={"Parts Ready":"green","Parts Partial":"orange","Parts Unavailable":"red"};
@@ -304,7 +301,7 @@ function render(){
   ]));
   if(lastSync)header.appendChild(h("span",{style:{fontSize:10,color:"#4B5563"}},["Synced "+lastSync.toLocaleTimeString()]));
   header.appendChild(h("button",{style:{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",color:"#9CA3AF",padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",borderRadius:5},onClick:()=>loadBoard(true)},["↻ Refresh"]));
-  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",[],["+ New Card"])]));
+  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",{},"+ New Card")]));
   app.appendChild(header);
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
   const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
@@ -448,7 +445,7 @@ function render(){
     cal.appendChild(calHeader);
     const MON_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
     const dayHeaders=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",background:LG,borderBottom:`1px solid ${MG}`,flexShrink:0}});
-    MON_DAYS.forEach(d=>dayHeaders.appendChild(h("div",{style:{padding:"8px 4px",textAlign:"center",fontSize:10,fontWeight:800,color:"#9CA3AF",letterSpacing:".08em"}},[d])));
+    MON_DAYS.forEach((d,i)=>dayHeaders.appendChild(h("div",{style:{padding:"8px 4px",textAlign:"center",fontSize:10,fontWeight:800,color:i===5?"#7C3AED":"#9CA3AF",letterSpacing:".08em",background:i===5?"#F3E8FF":"transparent"}},[d])));
     cal.appendChild(dayHeaders);
     const grid2=h("div",{style:{display:"grid",gridTemplateColumns:"repeat(7,1fr)",flex:1,overflowY:"auto"}});
     const rawFirst=new Date(calState.y,calState.m,1).getDay();
@@ -457,16 +454,20 @@ function render(){
     const pad=n=>String(n).padStart(2,"0");
     const ds=d=>`${calState.y}-${pad(calState.m+1)}-${pad(d)}`;
     for(let i=0;i<firstDow;i++){
-      grid2.appendChild(h("div",{style:{minHeight:120,background:LG,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`}}));
+      const isSatPad=(i+1)%7===6;
+      grid2.appendChild(h("div",{style:{minHeight:120,background:isSatPad?"#F3E8FF":LG,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`}}));
     }
     for(let d=1;d<=dim;d++){
       const dstr=ds(d);
       const dj=jobs.filter(j=>j.start<=dstr&&j.end>=dstr);
       const isTod=now.getFullYear()===calState.y&&now.getMonth()===calState.m&&now.getDate()===d;
       const isSel=calState.sel===d;
-      const cell=h("div",{style:{minHeight:120,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`,padding:5,cursor:"pointer",background:isSel?"#FFF0F2":W,display:"flex",flexDirection:"column"},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
+      const dow=new Date(calState.y,calState.m,d).getDay();
+      const isSat=dow===6;
+      const cellBg=isSel?"#FFF0F2":isSat?"#F3E8FF":W;
+      const cell=h("div",{style:{minHeight:120,borderRight:`1px solid ${MG}`,borderBottom:`1px solid ${MG}`,padding:5,cursor:"pointer",background:cellBg,display:"flex",flexDirection:"column"},onClick:()=>{window._calState={...calState,sel:isSel?null:d};render();}});
       const numRow=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:3}});
-      numRow.appendChild(h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},[d.toString()]));
+      numRow.appendChild(h("span",{style:{fontSize:12,fontWeight:isTod?900:600,color:isTod?W:isSel?R:isSat?"#7C3AED":B,background:isTod?R:"transparent",borderRadius:"50%",width:22,height:22,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}},[d.toString()]));
       if(dj.length>0)numRow.appendChild(h("span",{style:{fontSize:9,fontWeight:800,color:R,background:"#FFD6D6",border:"1px solid #FF5C5C",borderRadius:8,padding:"1px 5px"}},[dj.length.toString()]));
       cell.appendChild(numRow);
       const maxPills=3;
