@@ -86,6 +86,7 @@ const cardToJob=(card,lists)=>{
   const list=lists.find(l=>l.id===card.idList);
   const sk=statusKey(list?.name||"");
   const due=card.due?card.due.split("T")[0]:null;
+  const startDate=card.start?card.start.split("T")[0]:null;
   const lines=(card.desc||"").split("\n");
   const getLine=prefix=>lines.find(l=>new RegExp(`^${prefix}:`,"i").test(l))?.replace(new RegExp(`^${prefix}:\\s*`,"i"),"").trim()||"";
   const machine=getLine("Machine");
@@ -93,7 +94,7 @@ const cardToJob=(card,lists)=>{
   const technician=getLine("Technician");
   const partsReady=getLine("PartsReady");
   const notes=lines.filter(l=>!/^(Machine|Brand|Technician|PartsReady):/i.test(l)).join("\n").trim();
-  return{id:card.id,jobNo:card.name.match(/^([A-Z]{2,}-\d+)/)?.[1]||"",title:card.name.replace(/^[A-Z]{2,}-\d+\s*/,"").trim()||card.name,machine,brand,notes,technician,partsReady,start:due||new Date().toISOString().split("T")[0],end:due||new Date().toISOString().split("T")[0],status:sk,listId:card.idList,listName:list?.name||"",priority:prioFromLabels(card.labels),labels:card.labels||[],parts:(card.checklists||[]).flatMap(cl=>cl.checkItems?.map(ci=>({id:ci.id,checklistId:cl.id,name:ci.name,checked:ci.state==="complete"}))||[]),trelloUrl:card.shortUrl};
+  return{id:card.id,jobNo:card.name.match(/^([A-Z]{2,}-\d+)/)?.[1]||"",title:card.name.replace(/^[A-Z]{2,}-\d+\s*/,"").trim()||card.name,machine,brand,notes,technician,partsReady,start:startDate||due||new Date().toISOString().split("T")[0],end:due||new Date().toISOString().split("T")[0],status:sk,listId:card.idList,listName:list?.name||"",priority:prioFromLabels(card.labels),labels:card.labels||[],parts:(card.checklists||[]).flatMap(cl=>cl.checkItems?.map(ci=>({id:ci.id,checklistId:cl.id,name:ci.name,checked:ci.state==="complete"}))||[]),trelloUrl:card.shortUrl};
 };
 
 const buildDesc=form=>{
@@ -109,21 +110,26 @@ const buildDesc=form=>{
 async function applyPartsLabel(cardId,partsReady){
   if(!partsReady)return;
   try{
-    const colorMap={yes:"green",partially:"orange",no:"red"};
-    const targetColor=colorMap[partsReady];
-    if(!targetColor)return;
+    // Map to specific label names — never match by colour so priority labels are never touched
+    const nameMap={yes:"Parts Ready",partially:"Parts Partial",no:"Parts Unavailable"};
+    const targetName=nameMap[partsReady];
+    if(!targetName)return;
     const bl=await tGet(`boards/${BOARD_ID}/labels`);
-    const partsColors=["green","orange","red"];
-    const partsLabelIds=bl.filter(l=>partsColors.includes(l.color)).map(l=>l.id);
+    // Only consider labels whose name contains "Parts"
+    const partsLabelIds=bl.filter(l=>(l.name||"").toLowerCase().includes("parts")).map(l=>l.id);
     const liveCard=await tGet(`cards/${cardId}?fields=idLabels`);
     const liveIds=(liveCard.idLabels||[]);
     const toRemove=partsLabelIds.filter(id=>liveIds.includes(id));
-    // Remove sequentially with delay so Trello processes each before the next
     for(const id of toRemove){
       try{await fetch(`/trello/cards/${cardId}/idLabels/${id}`,{method:"DELETE"});}catch(_){}
       await new Promise(res=>setTimeout(res,200));
     }
-    const target=bl.find(l=>l.color===targetColor);
+    // Find the target label by name; create it if missing
+    let target=bl.find(l=>(l.name||"").toLowerCase()===targetName.toLowerCase());
+    if(!target){
+      const colorMap={"Parts Ready":"green","Parts Partial":"orange","Parts Unavailable":"red"};
+      try{target=await tPost(`boards/${BOARD_ID}/labels`,{name:targetName,color:colorMap[targetName]||"orange"});}catch(_){}
+    }
     if(target)await tPost(`cards/${cardId}/idLabels`,{value:target.id});
   }catch(e){console.warn("applyPartsLabel failed:",e.message);}
 }
@@ -136,7 +142,7 @@ async function loadBoard(quiet=false){
   try{
     const[lists,cards]=await Promise.all([
       tGet(`boards/${BOARD_ID}/lists?fields=id,name`),
-      tGet(`boards/${BOARD_ID}/cards?checklists=all&fields=id,name,desc,idList,due,labels,shortUrl,closed&filter=open`),
+      tGet(`boards/${BOARD_ID}/cards?checklists=all&fields=id,name,desc,idList,due,start,labels,shortUrl,closed&filter=open`),
     ]);
     setState({lists,jobs:cards.map(c=>cardToJob(c,lists)),loading:false,syncing:false,lastSync:new Date()});
   }catch(e){setState({error:e.message,loading:false,syncing:false});}
@@ -228,11 +234,11 @@ function renderModal(){
         :(lists.find(l=>l.id===form.listId)||lists[0]);
       const cardName=`${form.jobNo?form.jobNo+" ":""}${form.title}`;
       if(isNew){
-        const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T08:00:00.000Z":null});
+        const card=await tPost(`cards`,{idList:targetList.id,name:cardName,desc,due:form.end?form.end+"T12:00:00.000Z":null,start:form.start?form.start+"T12:00:00.000Z":null});
         setState({jobs:[...state.jobs,cardToJob({...card,checklists:[]},lists)],modal:null});
         applyPartsLabel(card.id,form.partsReady);
       }else{
-        await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T08:00:00.000Z":null});
+        await tPut(`cards/${form.id}`,{name:cardName,desc,idList:targetList.id,due:form.end?form.end+"T12:00:00.000Z":null,start:form.start?form.start+"T12:00:00.000Z":null});
         const updatedJob={...form,listId:targetList.id,listName:targetList.name,status:statusKey(targetList.name)};
         setState({jobs:state.jobs.map(j=>j.id===form.id?updatedJob:j),modal:null});
         applyPartsLabel(form.id,form.partsReady);
@@ -298,7 +304,7 @@ function render(){
   ]));
   if(lastSync)header.appendChild(h("span",{style:{fontSize:10,color:"#4B5563"}},["Synced "+lastSync.toLocaleTimeString()]));
   header.appendChild(h("button",{style:{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.15)",color:"#9CA3AF",padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer",borderRadius:5},onClick:()=>loadBoard(true)},["↻ Refresh"]));
-  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",{},["+ New Card"])]));
+  header.appendChild(h("button",{style:{marginLeft:"auto",background:R,color:W,border:"none",padding:"9px 18px",fontSize:12,fontWeight:800,borderRadius:4,cursor:"pointer"},onClick:()=>setState({modal:{title:"",machine:"",brand:"",notes:"",technician:"",partsReady:"",start:new Date().toISOString().split("T")[0],end:new Date().toISOString().split("T")[0],listId:lists[0]?.id||"",status:statusKey(lists[0]?.name||""),priority:"medium",labels:[],parts:[]}})},[h("span",[],["+ New Card"])]));
   app.appendChild(header);
   const content=h("div",{style:{padding:"20px 24px",maxWidth:1500,margin:"0 auto"}});
   const kpiRow=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr auto",gap:12,marginBottom:18}});
