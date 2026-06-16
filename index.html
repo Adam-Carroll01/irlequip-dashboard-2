@@ -117,7 +117,7 @@ const cardToJob=(card,lists)=>{
   const technician=getLine("Technician");
   const partsReady=getLine("PartsReady");
   const notes=lines.filter(l=>!/^(Machine|Brand|Technician|PartsReady):/i.test(l)).join("\n").trim();
-  return{id:card.id,jobNo:card.name.match(/^([A-Z]{2,}-\d+)/)?.[1]||"",title:card.name.replace(/^[A-Z]{2,}-\d+\s*/,"").trim()||card.name,machine,brand,notes,technician,partsReady,images:null,coverUrl:null,start:startDate||due||new Date().toISOString().split("T")[0],end:due||new Date().toISOString().split("T")[0],status:sk,listId:card.idList,listName:list?.name||"",priority:prioFromLabels(card.labels),labels:card.labels||[],parts:(card.checklists||[]).flatMap(cl=>cl.checkItems?.map(ci=>({id:ci.id,checklistId:cl.id,name:ci.name,checked:ci.state==="complete"}))||[]),trelloUrl:card.shortUrl};
+  return{id:card.id,jobNo:card.name.match(/^([A-Z]{2,}-\d+)/)?.[1]||"",title:card.name.replace(/^[A-Z]{2,}-\d+\s*/,"").trim()||card.name,machine,brand,notes,technician,partsReady,images:null,start:startDate||due||new Date().toISOString().split("T")[0],end:due||new Date().toISOString().split("T")[0],status:sk,listId:card.idList,listName:list?.name||"",priority:prioFromLabels(card.labels),labels:card.labels||[],parts:(card.checklists||[]).flatMap(cl=>cl.checkItems?.map(ci=>({id:ci.id,checklistId:cl.id,name:ci.name,checked:ci.state==="complete"}))||[]),trelloUrl:card.shortUrl};
 };
 
 const buildDesc=form=>{
@@ -161,9 +161,8 @@ async function loadAttachments(jobId){
   try{
     const attachments=await tGet(`cards/${jobId}/attachments`);
     const images=getImgUrls(attachments);
-    const coverUrl=images[0]?.preview||null;
-    const updated=state.jobs.map(j=>j.id===jobId?{...j,images,coverUrl}:j);
-    const modal=state.modal?.id===jobId?{...state.modal,images,coverUrl}:state.modal;
+    const updated=state.jobs.map(j=>j.id===jobId?{...j,images}:j);
+    const modal=state.modal?.id===jobId?{...state.modal,images}:state.modal;
     setState({jobs:updated,modal});
   }catch(e){console.warn("loadAttachments failed:",e.message);}
 }
@@ -207,8 +206,23 @@ function renderLightbox(){
   const{images,idx}=lightbox;
   const cur=images[idx];
   const lb=h("div",{class:"lightbox",onClick:e=>{if(e.target===lb)setState({lightbox:null});}});
-  lb.appendChild(h("button",{style:{position:"absolute",top:16,right:20,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",color:W,width:36,height:36,borderRadius:8,fontSize:20,cursor:"pointer",zIndex:10},onClick:()=>setState({lightbox:null})},["×"]));
-  lb.appendChild(h("div",{style:{position:"absolute",top:20,left:"50%",transform:"translateX(-50%)",color:"#9CA3AF",fontSize:11,fontWeight:700,letterSpacing:".08em"}},[`${idx+1} / ${images.length}`]));
+
+  // Keyboard navigation
+  const onKey=e=>{
+    if(e.key==="Escape")setState({lightbox:null});
+    if(e.key==="ArrowRight")setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});
+    if(e.key==="ArrowLeft")setState({lightbox:{...lightbox,idx:(idx-1+images.length)%images.length}});
+  };
+  document.addEventListener("keydown",onKey);
+  lb._cleanup=()=>document.removeEventListener("keydown",onKey);
+
+  // X close button
+  lb.appendChild(h("button",{style:{position:"absolute",top:16,right:20,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.25)",color:W,width:40,height:40,borderRadius:8,fontSize:22,cursor:"pointer",zIndex:10,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>setState({lightbox:null})},["×"]));
+
+  // Counter
+  lb.appendChild(h("div",{style:{position:"absolute",top:22,left:"50%",transform:"translateX(-50%)",color:"#9CA3AF",fontSize:11,fontWeight:700,letterSpacing:".08em"}},[`${idx+1} / ${images.length}`]));
+
+  // Image + arrows
   const imgWrap=h("div",{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"0 70px"}});
   imgWrap.appendChild(h("img",{class:"lightbox-img",src:cur.preview||cur.full}));
   if(images.length>1){
@@ -216,7 +230,11 @@ function renderLightbox(){
     imgWrap.appendChild(h("button",{class:"lightbox-nav",style:{right:16},onClick:e=>{e.stopPropagation();setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});}},["›"]));
   }
   lb.appendChild(imgWrap);
+
+  // Filename
   lb.appendChild(h("div",{style:{color:"#9CA3AF",fontSize:11,maxWidth:"80vw",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[cur.name]));
+
+  // Thumbnail strip
   if(images.length>1){
     const strip=h("div",{class:"lightbox-thumbs"});
     images.forEach((im,i)=>{
@@ -226,6 +244,7 @@ function renderLightbox(){
     });
     lb.appendChild(strip);
   }
+
   lb.appendChild(h("a",{href:cur.full,target:"_blank",style:{color:"#60A5FA",fontSize:11,fontWeight:700,textDecoration:"none"},onClick:e=>e.stopPropagation()},["⬡ Open full resolution ↗"]));
   return lb;
 }
@@ -242,6 +261,7 @@ function renderModal(){
   const field=(label,input)=>h("div",{},[h("label",{style:{display:"block",fontSize:11,fontWeight:600,color:"#6B7280",marginBottom:4}},[label]),input]);
   const textInput=(key,val,placeholder="")=>{const el=h("input",{style:inp,value:val||"",placeholder});el.addEventListener("input",e=>{form[key]=e.target.value;});return el;};
   const dateInput=(key,val)=>{const el=h("input",{style:inp,type:"date",value:val||""});el.addEventListener("input",e=>{form[key]=e.target.value;});return el;};
+
   box.appendChild(h("div",{style:{background:B,borderRadius:"10px 10px 0 0",padding:"18px 22px",display:"flex",justifyContent:"space-between",alignItems:"center"}},[
     h("div",{},[
       h("div",{style:{fontSize:11,fontWeight:700,color:R,letterSpacing:"2px"}},[isNew?"NEW TRELLO CARD":"EDIT TRELLO CARD"]),
@@ -249,9 +269,10 @@ function renderModal(){
     ]),
     h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:32,height:32,borderRadius:6,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>setState({modal:null})},["×"]),
   ]));
+
   const body=h("div",{style:{padding:22,display:"grid",gap:16,maxHeight:"72vh",overflowY:"auto"}});
 
-  // Photo gallery — lazy loaded
+  // Photo gallery — only shown inside modal, loaded on demand
   const imgs=form.images||[];
   if(!isNew){
     if(form.images===null){
@@ -268,7 +289,7 @@ function renderModal(){
       heroImg.addEventListener("mouseout",()=>heroImg.style.opacity="1");
       hero.addEventListener("click",()=>setState({lightbox:{images:imgs,idx:0}}));
       const heroOverlay=h("div",{style:{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}});
-      heroOverlay.appendChild(h("div",{style:{background:"rgba(0,0,0,.4)",color:W,fontSize:11,fontWeight:700,padding:"6px 14px",borderRadius:20,letterSpacing:".05em"}},[`View all ${imgs.length} photo${imgs.length>1?"s":""}`]));
+      heroOverlay.appendChild(h("div",{style:{background:"rgba(0,0,0,.4)",color:W,fontSize:11,fontWeight:700,padding:"6px 14px",borderRadius:20}},[`View all ${imgs.length} photo${imgs.length>1?"s":""} ↗`]));
       hero.appendChild(heroImg);
       hero.appendChild(heroOverlay);
       galleryWrap.appendChild(hero);
@@ -473,11 +494,6 @@ function render(){
         lj.forEach(job=>{
           const js=statusObj(job.status),p=PRIO[job.priority]||PRIO.medium;
           const card=h("div",{class:"jcard",style:{borderLeft:`3px solid ${js.dot}`},onClick:()=>{setState({modal:{...job}});if(job.images===null)loadAttachments(job.id);}});
-          if(job.coverUrl){
-            const imgWrap=h("div",{style:{position:"relative",overflow:"hidden"}});
-            imgWrap.appendChild(h("img",{src:job.coverUrl,style:{width:"100%",height:"150px",objectFit:"cover",display:"block"}}));
-            card.appendChild(imgWrap);
-          }
           const cardBody=h("div",{style:{padding:14}});
           cardBody.appendChild(h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}},[
             h("div",{style:{flex:1,minWidth:0}},[
@@ -573,7 +589,7 @@ function render(){
         pill.textContent=j.title;pill.title=j.title;
         cell.appendChild(pill);
       });
-      if(dj.length>3)cell.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",padding:"1px 4px"},onClick:e=>{e.stopPropagation();window._calState={...calState,sel:d};render();}},["+"+(dj.length-3)+" more"]));
+      if(dj.length>3)cell.appendChild(h("div",{style:{fontSize:10,color:"#9CA3AF",padding:"1px 4px",cursor:"pointer"},onClick:e=>{e.stopPropagation();window._calState={...calState,sel:d};render();}},["+"+(dj.length-3)+" more"]));
       grid2.appendChild(cell);
     }
     cal.appendChild(grid2);
@@ -589,12 +605,10 @@ function render(){
     else if(!selJobs.length)panelBody.appendChild(h("div",{style:{textAlign:"center",color:"#D1D5DB",padding:24,fontSize:12}},["No jobs this day"]));
     selJobs.forEach(j=>{
       const s=statusObj(j.status);
-      const card=h("div",{style:{background:s.bg,border:`1px solid ${s.border}`,borderLeft:`3px solid ${s.dot}`,borderRadius:6,overflow:"hidden",cursor:"pointer"},onClick:()=>{setState({modal:{...j}});if(j.images===null)loadAttachments(j.id);}});
-      const ci=h("div",{style:{padding:"8px 10px"}});
-      ci.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:B}},[j.title]));
-      ci.appendChild(h("div",{style:{fontSize:10,color:"#6B7280"}},[j.machine||""]));
-      if(j.technician)ci.appendChild(h("div",{style:{fontSize:10,color:"#6B7280",marginTop:2}},["👷 "+j.technician]));
-      card.appendChild(ci);
+      const card=h("div",{style:{background:s.bg,border:`1px solid ${s.border}`,borderLeft:`3px solid ${s.dot}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"},onClick:()=>{setState({modal:{...j}});if(j.images===null)loadAttachments(j.id);}});
+      card.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:B}},[j.title]));
+      card.appendChild(h("div",{style:{fontSize:10,color:"#6B7280"}},[j.machine||""]));
+      if(j.technician)card.appendChild(h("div",{style:{fontSize:10,color:"#6B7280",marginTop:2}},["👷 "+j.technician]));
       panelBody.appendChild(card);
     });
     panel.appendChild(panelBody);
@@ -618,11 +632,9 @@ function render(){
       const body2=h("div",{style:{padding:10,display:"flex",flexDirection:"column",gap:8}});
       tj.forEach(j=>{
         const s=statusObj(j.status);
-        const jcard=h("div",{style:{background:s.bg,border:`1px solid ${s.border}`,borderLeft:`3px solid ${s.dot}`,borderRadius:6,overflow:"hidden",cursor:"pointer"},onClick:()=>{setState({modal:{...j}});if(j.images===null)loadAttachments(j.id);}});
-        const ji=h("div",{style:{padding:"6px 10px"}});
-        ji.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:B}},[j.title]));
-        ji.appendChild(h("div",{style:{fontSize:10,color:"#6B7280",marginTop:1}},[j.machine||""]));
-        jcard.appendChild(ji);
+        const jcard=h("div",{style:{background:s.bg,border:`1px solid ${s.border}`,borderLeft:`3px solid ${s.dot}`,borderRadius:6,padding:"8px 10px",cursor:"pointer"},onClick:()=>{setState({modal:{...j}});if(j.images===null)loadAttachments(j.id);}});
+        jcard.appendChild(h("div",{style:{fontSize:12,fontWeight:700,color:B}},[j.title]));
+        jcard.appendChild(h("div",{style:{fontSize:10,color:"#6B7280",marginTop:1}},[j.machine||""]));
         body2.appendChild(jcard);
       });
       card.appendChild(body2);
@@ -633,6 +645,7 @@ function render(){
   app.appendChild(content);
   const modalEl=renderModal();
   if(modalEl)app.appendChild(modalEl);
+  document.querySelectorAll(".lightbox").forEach(el=>el._cleanup?.());
   const lbEl=renderLightbox();
   if(lbEl)app.appendChild(lbEl);
 }
