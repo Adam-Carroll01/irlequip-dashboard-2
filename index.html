@@ -92,6 +92,7 @@ const tGet=async p=>{const r=await fetch(`/trello/${p}`);if(!r.ok)throw new Erro
 const tPost=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
 const tPut=async(p,b)=>{const r=await fetch(`/trello/${p}`,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();};
 
+const proxy=url=>url?`/img-proxy?url=${encodeURIComponent(url)}`:url;
 const getImgUrls=attachments=>{
   return(attachments||[])
     .filter(a=>a.url?.match(/\.(jpg|jpeg|png|gif|webp)/i)||a.previews?.length)
@@ -99,7 +100,7 @@ const getImgUrls=attachments=>{
       const full=a.url||"";
       const preview=a.previews?.slice(-1)[0]?.url||"";
       const thumb=a.previews?.find(p=>p.width<=300)?.url||a.previews?.[0]?.url||preview||full;
-      return{full,preview:preview||full,thumb:thumb||full,name:a.name||"Image"};
+      return{full:proxy(full),preview:proxy(preview||full),thumb:proxy(thumb||full),name:a.name||"Image"};
     });
 };
 
@@ -204,7 +205,6 @@ function renderLightbox(){
   const{images,idx}=lightbox;
   const cur=images[idx];
   const lb=h("div",{class:"lightbox",onClick:e=>{if(e.target===lb)setState({lightbox:null});}});
-
   const onKey=e=>{
     if(e.key==="Escape")setState({lightbox:null});
     if(e.key==="ArrowRight")setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});
