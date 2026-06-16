@@ -18,14 +18,43 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });
 
+// Image proxy — fetches Trello attachment images server-side so
+// colleagues don't need to be logged in to Trello to see them
+app.get("/img-proxy", async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).send("Missing url");
+
+  // Only allow Trello domains
+  let parsed;
+  try { parsed = new URL(url); } catch { return res.status(400).send("Invalid url"); }
+  const allowed = ["trello.com", "trellocdn.com", "attachments.trellocdn.com"];
+  if (!allowed.some(d => parsed.hostname.endsWith(d))) {
+    return res.status(403).send("Forbidden domain");
+  }
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `OAuth oauth_consumer_key="${API_KEY}", oauth_token="${TOKEN}"`,
+      },
+    });
+    if (!response.ok) return res.status(response.status).send("Upstream error");
+
+    const ct = response.headers.get("content-type") || "image/jpeg";
+    res.setHeader("Content-Type", ct);
+    res.setHeader("Cache-Control", "public, max-age=86400");
+
+    const buf = await response.arrayBuffer();
+    res.send(Buffer.from(buf));
+  } catch (err) {
+    res.status(500).send(err.message);
+  }
+});
+
 app.all("/trello/:path(*)", async (req, res) => {
   const trelloPath = req.params.path;
-
-  // Auth always goes in query string
   const qp = new URLSearchParams({ key: API_KEY, token: TOKEN, ...req.query });
   const url = `${BASE}/${trelloPath}?${qp.toString()}`;
-
-  // For PUT/POST send body as JSON so multiline fields (desc) are preserved correctly
   const isWrite = ["POST", "PUT"].includes(req.method);
   try {
     const response = await fetch(url, {
