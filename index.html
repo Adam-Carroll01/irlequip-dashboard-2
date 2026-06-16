@@ -35,8 +35,6 @@ input:focus,textarea:focus,select:focus{border-color:#C8102E!important;box-shado
 .thumb.active{border-color:#C8102E;}
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
 .lightbox-img{max-width:90vw;max-height:75vh;border-radius:8px;object-fit:contain;box-shadow:0 8px 48px rgba(0,0,0,.6);}
-.lightbox-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;width:44px;height:44px;border-radius:50%;font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
-.lightbox-nav:hover{background:rgba(255,255,255,.3);}
 .lightbox-thumbs{display:flex;gap:8px;overflow-x:auto;padding:4px 8px;max-width:90vw;}
 .lightbox-thumb{width:64px;height:48px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;opacity:.6;transition:opacity .15s,border-color .15s;}
 .lightbox-thumb:hover{opacity:1;}
@@ -207,7 +205,6 @@ function renderLightbox(){
   const cur=images[idx];
   const lb=h("div",{class:"lightbox",onClick:e=>{if(e.target===lb)setState({lightbox:null});}});
 
-  // Keyboard navigation
   const onKey=e=>{
     if(e.key==="Escape")setState({lightbox:null});
     if(e.key==="ArrowRight")setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});
@@ -216,25 +213,25 @@ function renderLightbox(){
   document.addEventListener("keydown",onKey);
   lb._cleanup=()=>document.removeEventListener("keydown",onKey);
 
-  // X close button
-  lb.appendChild(h("button",{style:{position:"absolute",top:16,right:20,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.25)",color:W,width:40,height:40,borderRadius:8,fontSize:22,cursor:"pointer",zIndex:10,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>setState({lightbox:null})},["×"]));
+  // X — fixed top-right of screen
+  lb.appendChild(h("button",{style:{position:"fixed",top:16,right:16,background:"rgba(20,20,20,.85)",border:"2px solid rgba(255,255,255,.3)",color:W,width:48,height:48,borderRadius:12,fontSize:26,cursor:"pointer",zIndex:201,display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>setState({lightbox:null})},["×"]));
 
-  // Counter
-  lb.appendChild(h("div",{style:{position:"absolute",top:22,left:"50%",transform:"translateX(-50%)",color:"#9CA3AF",fontSize:11,fontWeight:700,letterSpacing:".08em"}},[`${idx+1} / ${images.length}`]));
+  // Counter — fixed top-centre
+  lb.appendChild(h("div",{style:{position:"fixed",top:22,left:"50%",transform:"translateX(-50%)",color:"rgba(255,255,255,.55)",fontSize:11,fontWeight:700,letterSpacing:".08em",zIndex:201,pointerEvents:"none"}},[`${idx+1} / ${images.length}`]));
 
-  // Image + arrows
-  const imgWrap=h("div",{style:{position:"relative",display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"0 70px"}});
-  imgWrap.appendChild(h("img",{class:"lightbox-img",src:cur.preview||cur.full}));
+  // Arrows — fixed left/right centre of screen
   if(images.length>1){
-    imgWrap.appendChild(h("button",{class:"lightbox-nav",style:{left:16},onClick:e=>{e.stopPropagation();setState({lightbox:{...lightbox,idx:(idx-1+images.length)%images.length}});}},["‹"]));
-    imgWrap.appendChild(h("button",{class:"lightbox-nav",style:{right:16},onClick:e=>{e.stopPropagation();setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});}},["›"]));
+    lb.appendChild(h("button",{style:{position:"fixed",left:12,top:"50%",transform:"translateY(-50%)",background:"rgba(20,20,20,.75)",border:"2px solid rgba(255,255,255,.2)",color:W,width:52,height:52,borderRadius:"50%",fontSize:28,cursor:"pointer",zIndex:201,display:"flex",alignItems:"center",justifyContent:"center"},onClick:e=>{e.stopPropagation();setState({lightbox:{...lightbox,idx:(idx-1+images.length)%images.length}});}},["‹"]));
+    lb.appendChild(h("button",{style:{position:"fixed",right:12,top:"50%",transform:"translateY(-50%)",background:"rgba(20,20,20,.75)",border:"2px solid rgba(255,255,255,.2)",color:W,width:52,height:52,borderRadius:"50%",fontSize:28,cursor:"pointer",zIndex:201,display:"flex",alignItems:"center",justifyContent:"center"},onClick:e=>{e.stopPropagation();setState({lightbox:{...lightbox,idx:(idx+1)%images.length}});}},["›"]));
   }
+
+  // Main image
+  const imgWrap=h("div",{style:{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",maxWidth:"90vw"}});
+  imgWrap.appendChild(h("img",{class:"lightbox-img",src:cur.preview||cur.full}));
   lb.appendChild(imgWrap);
 
-  // Filename
   lb.appendChild(h("div",{style:{color:"#9CA3AF",fontSize:11,maxWidth:"80vw",textAlign:"center",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}},[cur.name]));
 
-  // Thumbnail strip
   if(images.length>1){
     const strip=h("div",{class:"lightbox-thumbs"});
     images.forEach((im,i)=>{
@@ -261,7 +258,6 @@ function renderModal(){
   const field=(label,input)=>h("div",{},[h("label",{style:{display:"block",fontSize:11,fontWeight:600,color:"#6B7280",marginBottom:4}},[label]),input]);
   const textInput=(key,val,placeholder="")=>{const el=h("input",{style:inp,value:val||"",placeholder});el.addEventListener("input",e=>{form[key]=e.target.value;});return el;};
   const dateInput=(key,val)=>{const el=h("input",{style:inp,type:"date",value:val||""});el.addEventListener("input",e=>{form[key]=e.target.value;});return el;};
-
   box.appendChild(h("div",{style:{background:B,borderRadius:"10px 10px 0 0",padding:"18px 22px",display:"flex",justifyContent:"space-between",alignItems:"center"}},[
     h("div",{},[
       h("div",{style:{fontSize:11,fontWeight:700,color:R,letterSpacing:"2px"}},[isNew?"NEW TRELLO CARD":"EDIT TRELLO CARD"]),
@@ -269,10 +265,7 @@ function renderModal(){
     ]),
     h("button",{style:{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",color:W,width:32,height:32,borderRadius:6,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"},onClick:()=>setState({modal:null})},["×"]),
   ]));
-
   const body=h("div",{style:{padding:22,display:"grid",gap:16,maxHeight:"72vh",overflowY:"auto"}});
-
-  // Photo gallery — only shown inside modal, loaded on demand
   const imgs=form.images||[];
   if(!isNew){
     if(form.images===null){
@@ -305,7 +298,6 @@ function renderModal(){
       body.appendChild(galleryWrap);
     }
   }
-
   const g2=h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}});
   g2.appendChild(field("Job Number",textInput("jobNo",form.jobNo,"IRL-0001")));
   g2.appendChild(field("Title",textInput("title",form.title,"e.g. Annual Inspection")));
